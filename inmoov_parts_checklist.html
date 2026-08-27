@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InMoov Parts Checklist</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f5f7;color:#202124}
+header{background:#202124;color:white;padding:22px}
+h1{margin:0 0 6px;font-size:26px}
+header p{margin:0;color:#c9c9c9}
+.controls{position:sticky;top:0;background:white;padding:14px;box-shadow:0 2px 8px #0001;z-index:2;display:flex;gap:10px;flex-wrap:wrap}
+input,select,button{font:inherit;padding:10px;border:1px solid #ccc;border-radius:8px;background:white}
+input{flex:1;min-width:180px}
+button{cursor:pointer}
+.progress{padding:14px;background:white;margin:14px;border-radius:12px}
+.bar{height:12px;background:#ddd;border-radius:20px;overflow:hidden}
+.fill{height:100%;width:0;background:#4caf50;transition:.2s}
+#count{margin-top:7px;font-size:14px;color:#666}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;padding:0 14px 30px}
+.card{background:white;border-radius:14px;padding:16px;box-shadow:0 2px 8px #00000012}
+.preview{height:150px;background:#eef0f2;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#777;font-size:46px}
+.name{font-weight:700;margin:13px 0 10px;word-break:break-word}
+label{display:flex;align-items:center;gap:9px;margin:9px 0;cursor:pointer}
+label input{min-width:auto;flex:0;width:19px;height:19px}
+.notes{width:100%;margin-top:8px}
+.small{font-size:12px;color:#777;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+<h1>InMoov Parts Checklist</h1>
+<p>Track which parts you have and which ones you have printed.</p>
+</header>
+
+<div class="controls">
+<input id="search" placeholder="Search parts..." oninput="render()">
+<select id="filter" onchange="render()">
+<option value="all">All parts</option>
+<option value="missing">Missing</option>
+<option value="have">Have</option>
+<option value="printed">Printed</option>
+</select>
+<button onclick="resetAll()">Reset all</button>
+</div>
+
+<div class="progress">
+<strong>Progress</strong>
+<div class="bar"><div class="fill" id="fill"></div></div>
+<div id="count"></div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const parts = [
+  "BicepLeft",
+  "BicepRight",
+  "BicepCover",
+  "BicepGear",
+  "BicepJoint",
+  "BicepMotorMount",
+  "BicepTop",
+  "BicepBottom",
+  "BicepSpacer"
+];
+
+const state = JSON.parse(localStorage.getItem("inmoovParts") || "{}");
+
+function save(){localStorage.setItem("inmoovParts",JSON.stringify(state));}
+
+function render(){
+  const q=document.getElementById("search").value.toLowerCase();
+  const f=document.getElementById("filter").value;
+  const grid=document.getElementById("grid");
+  grid.innerHTML="";
+
+  parts.filter(p=>{
+    const s=state[p]||{};
+    const match=p.toLowerCase().includes(q);
+    const filter=f==="all" || (f==="missing"&&!s.have) || (f==="have"&&s.have) || (f==="printed"&&s.printed);
+    return match&&filter;
+  }).forEach(p=>{
+    const s=state[p]||{};
+    const card=document.createElement("div");
+    card.className="card";
+    card.innerHTML=`
+      <div class="preview">🧩</div>
+      <div class="name">${p}</div>
+      <label><input type="checkbox" ${s.have?"checked":""} onchange="setState('${p}','have',this.checked)"> I have this part</label>
+      <a href="https://inmoov.fr/inmoov-stl-parts-viewer/?bodyparts=BicepOlderVersion" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;margin:10px 0;padding:10px;border:1px solid #ccc;border-radius:8px;color:#202124;background:#f8f9fa">Open InMoov Parts Viewer</a>
+      <input class="notes" placeholder="Notes..." value="${s.notes||""}" onchange="setState('${p}','notes',this.value)">
+      <div class="small">STL preview can be added when the STL file is available locally.</div>`;
+    grid.appendChild(card);
+  });
+  updateProgress();
+}
+
+function setState(p,k,v){state[p]=state[p]||{};state[p][k]=v;save();updateProgress();}
+function updateProgress(){
+  const total=parts.length;
+  const have=parts.filter(p=>state[p]?.have).length;
+  document.getElementById("fill").style.width=(have/total*100)+"%";
+  document.getElementById("count").textContent=`${have} of ${total} parts marked as having`;
+}
+function resetAll(){
+  if(confirm("Reset all saved checkboxes and notes?")){
+    localStorage.removeItem("inmoovParts");
+    location.reload();
+  }
+}
+render();
+</script>
+</body>
+</html>
