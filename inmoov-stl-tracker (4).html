@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InMoov STL Parts Tracker</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
+    --text:#e8eaed; --muted:#9aa3b2; --accent:#5b8cff; --accent2:#33d17a;
+    --danger:#ff5c5c; --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html, body{ overflow:hidden; }
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); display:flex; height:100vh; overflow:hidden;
+  }
+  /* Sidebar */
+  #sidebar{
+    width:280px; min-width:220px; background:var(--panel); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  #sidebar h1{
+    font-size:16px; margin:0; padding:16px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:8px;
+  }
+  #sidebar h1 span.dot{width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block;}
+  #search{
+    margin:12px; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel2); color:var(--text); font-size:13px;
+  }
+  #catList{ overflow-y:auto; flex:1; min-height:0; padding:0 8px 8px; }
+  .catItem{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:9px 10px; border-radius:8px; cursor:pointer; font-size:13.5px; color:var(--muted);
+    margin-bottom:2px;
+  }
+  .catItem:hover{ background:var(--panel2); color:var(--text); }
+  .catItem.active{ background:var(--accent); color:#fff; }
+  .catItem .count{ font-size:11px; opacity:.8; }
+  .catItem.active .count{ opacity:1; }
+  .catItem .catRight{ display:flex; align-items:center; gap:6px; }
+  .catDelBtn{
+    opacity:0; background:none; border:none; color:var(--danger); font-size:13px; padding:2px 5px;
+    border-radius:5px; cursor:pointer; line-height:1;
+  }
+  .catItem:hover .catDelBtn{ opacity:.85; }
+  .catDelBtn:hover{ opacity:1 !important; background:rgba(255,92,92,.15); }
+  #newFolderRow{ display:flex; gap:6px; padding:0 12px 10px; }
+  #newFolderRow input{
+    flex:1; padding:7px 9px; border-radius:7px; border:1px solid var(--border);
+    background:var(--panel2); color:var(--text); font-size:12.5px;
+  }
+  #globalStats{
+    padding:12px 16px; border-top:1px solid var(--border); font-size:12px; color:var(--muted);
+  }
+  #globalStats b{ color:var(--text); }
+  #globalBar{ height:6px; background:var(--panel2); border-radius:4px; margin-top:6px; overflow:hidden; }
+  #globalBarFill{ height:100%; background:var(--accent2); width:0%; transition:width .3s; }
+  .sideBtns{ display:flex; gap:6px; padding:0 16px 14px; }
+  .sideBtns button{ flex:1; }
+
+  /* Main */
+  #main{ flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+  #topbar{
+    padding:14px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  #topbar .titleWrap h2{ margin:0; font-size:20px; }
+  #topbar .titleWrap p{ margin:2px 0 0; font-size:12.5px; color:var(--muted); }
+  #catProgress{ font-size:12.5px; color:var(--muted); min-width:150px; text-align:right; }
+  #catBar{ height:6px; width:150px; background:var(--panel2); border-radius:4px; overflow:hidden; margin-top:4px; }
+  #catBarFill{ height:100%; background:var(--accent2); width:0%; transition:width .3s; }
+
+  button{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px;
+    padding:7px 12px; font-size:12.5px; cursor:pointer;
+  }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover{ filter:brightness(1.1); }
+  button.danger{ color:var(--danger); }
+
+  #grid{
+    flex:1; min-height:0; overflow-y:auto; padding:20px 22px;
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; align-content:start;
+  }
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;
+    display:flex; flex-direction:column; transition:border-color .15s;
+    height:360px;
+  }
+  .card.printed{ border-color:var(--accent2); }
+  .thumb{
+    width:100%; height:180px; background:#fff;
+    display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; flex-shrink:0;
+  }
+  .thumb img{ width:100%; height:100%; object-fit:contain; }
+  .thumb .noimg{ color:var(--muted); font-size:11px; text-align:center; padding:10px; }
+  .cardBody{ padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; flex:1; min-height:0; }
+  .cardBody .name{
+    font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0;
+  }
+  .cardBody textarea.desc{
+    width:100%; resize:none; height:64px; flex-shrink:0; font-size:12px; background:var(--panel2);
+    border:1px solid var(--border); border-radius:6px; color:var(--text); padding:6px; font-family:inherit;
+    overflow-y:auto;
+  }
+  .cardFooter{ display:flex; align-items:center; justify-content:space-between; margin-top:auto; }
+  .printedLabel{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer; }
+  .printedLabel input{ width:16px; height:16px; accent-color:var(--accent2); cursor:pointer; }
+  .cardActions{ display:flex; gap:6px; }
+  .cardActions button{ padding:4px 7px; font-size:11px; }
+
+  .emptyState{ color:var(--muted); font-size:13.5px; padding:30px; text-align:center; grid-column:1/-1; }
+  .emptyState code{ background:var(--panel2); padding:2px 6px; border-radius:4px; }
+
+  /* Modal */
+  .modalOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:50;
+  }
+  .modalOverlay.show{ display:flex; }
+  .modal{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; width:380px; max-width:90vw;
+    padding:20px; display:flex; flex-direction:column; gap:10px;
+  }
+  .modal h3{ margin:0 0 4px; font-size:15px; }
+  .modal label{ font-size:12px; color:var(--muted); }
+  .modal input[type=text], .modal textarea{
+    width:100%; padding:8px 9px; border-radius:7px; border:1px solid var(--border); background:var(--panel2);
+    color:var(--text); font-size:13px; font-family:inherit;
+  }
+  .modal textarea{ min-height:60px; resize:vertical; }
+  .modalActions{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+  #fileInput{ display:none; }
+  .hint{ font-size:11px; color:var(--muted); line-height:1.4; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h1><span class="dot"></span> InMoov STL Tracker</h1>
+  <input id="search" type="text" placeholder="Search categories...">
+  <div id="newFolderRow">
+    <input id="newFolderInput" type="text" placeholder="New folder name...">
+    <button id="newFolderBtn" title="Create a new category folder">+ Folder</button>
+  </div>
+  <div id="catList"></div>
+  <div id="globalStats">
+    <div><b id="gPrinted">0</b>/<span id="gTotal">0</span> parts printed overall</div>
+    <div id="globalBar"><div id="globalBarFill"></div></div>
+  </div>
+  <div class="sideBtns">
+    <button id="exportBtn" title="Save your progress to a JSON file">Export</button>
+    <button id="importBtn" title="Load a previously exported JSON file">Import</button>
+    <input type="file" id="fileInput" accept="application/json">
+  </div>
+</div>
+
+<div id="main">
+  <div id="topbar">
+    <div class="titleWrap">
+      <h2 id="catTitle">Category</h2>
+      <p id="catSub">0 parts</p>
+    </div>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <div id="catProgress">
+        0 / 0 printed
+        <div id="catBar"><div id="catBarFill"></div></div>
+      </div>
+      <button class="danger" id="deleteFolderBtn" title="Delete this whole folder and its parts">Delete Folder</button>
+      <button class="primary" id="addPartBtn">+ Add Part</button>
+    </div>
+  </div>
+  <div id="grid"></div>
+</div>
+
+<!-- Add/Edit Part Modal -->
+<div class="modalOverlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Add Part</h3>
+    <label>Part name</label>
+    <input type="text" id="mName" placeholder="e.g. BackCoverTopLeftV3.stl">
+    <label>Image URL (optional)</label>
+    <input type="text" id="mImage" placeholder="https://inmoov.fr/wp-content/uploads/stl/Back/BackCoverTopLeftV3.png">
+    <label>Description</label>
+    <textarea id="mDesc" placeholder="What this part is / notes"></textarea>
+    <div class="hint">
+      Tip: on the InMoov site, image URLs follow this pattern:<br>
+      <code>https://inmoov.fr/wp-content/uploads/stl/&lt;Category&gt;/&lt;PartName&gt;.png</code>
+    </div>
+    <div class="modalActions">
+      <button id="mCancel">Cancel</button>
+      <button class="primary" id="mSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Helpers to build seed parts for Back & Bicep (verified from inmoov.fr) ---------- */
+function imgUrl(cat, file){
+  return `https://inmoov.fr/wp-content/uploads/stl/${cat}/${file.replace(/\.stl$/i,'')}.png`;
+}
+function part(cat, file, desc){
+  return { name:file, image:imgUrl(cat,file), desc: desc || '', printed:false };
+}
+
+const BACK_FILES = [
+  ["BackClaviHolderV2.stl","Holds the clavicle assembly onto the back frame."],
+  ["BackCoverBottomLeftV2.stl","Lower-left back cover panel."],
+  ["BackCoverBottomMidV2.stl","Lower-middle back cover panel."],
+  ["BackCoverBottomRightV2.stl","Lower-right back cover panel."],
+  ["BackCoverLowLeftV1.stl","Low-left back cover panel."],
+  ["BackCoverLowRightV1.stl","Low-right back cover panel."],
+  ["BackCoverTopLeftV3.stl","Upper-left back cover panel."],
+  ["BackCoverTopMid.V2.stl","Upper-middle back cover panel."],
+  ["BackCoverTopRightV3.stl","Upper-right back cover panel."],
+  ["BackDoorClipV1.stl","Clip that secures the back access door."],
+  ["BackDoorLeftV3.stl","Left access door panel."],
+  ["BackDoorRightV3.stl","Right access door panel."],
+  ["BackHipsLeftV2.stl","Left hip connection bracket for the back frame."],
+  ["BackHipsMidV2.stl","Middle hip connection bracket."],
+  ["BackHipsRightV2.stl","Right hip connection bracket."],
+  ["BackHolderCenterLeftV1.stl","Center-left structural holder."],
+  ["BackHolderCenterRightV1.stl","Center-right structural holder."],
+  ["BackHolderCenterV1.stl","Center structural holder."],
+  ["BackHolderLowLeftV1.stl","Lower-left structural holder."],
+  ["BackHolderLowRightV1.stl","Lower-right structural holder."],
+  ["BackPowerV1.stl","Mount for the back power distribution."],
+  ["BackSideHolderLeftV1.stl","Left side structural holder."],
+  ["BackSideHolderRightV1.stl","Right side structural holder."],
+  ["BatteryHolderLeftV5.stl","Left battery mount."],
+  ["BatteryHolderRightV5.stl","Right battery mount."],
+  ["BatteryPusherV1.stl","Retention piece that holds batteries in place."],
+  ["USBCliker.stl","USB button/clicker mechanism housing."],
+  ["USBRotater.stl","Rotating USB port mount."]
+].map(([f,d])=>part("Back",f,d));
+
+const BICEP_FILES = [
+  ["GearHolderV1.stl","Mounting bracket for the bicep rotation gear."],
+  ["HighArmSideV3.stl","Upper arm side shell panel."],
+  ["LeftRotTitV4.stl","Left rotation mechanism tooth piece."],
+  ["LeftRotcenterV3.stl","Left rotation center hub."],
+  ["LowArmSideV3.stl","Lower arm side shell panel."],
+  ["PistonanticlockV2.stl","Anticlockwise piston piece for rotation."],
+  ["PistonbaseantiV2.stl","Base for the anticlockwise piston."],
+  ["PivPotentioRoundV3.stl","Round potentiometer pivot mount."],
+  ["PivPotentioSquareV3.stl","Square potentiometer pivot mount."],
+  ["ReinforcerV2.stl","Structural reinforcement piece."],
+  ["RibonPusherV1.stl","Ribbon cable pusher/guide."],
+  ["RotGearV6.stl","Main rotation gear."],
+  ["RotMitV3.stl","Rotation mitten/half-gear piece."],
+  ["RotTitV4.stl","Rotation tooth piece."],
+  ["RotWormV5.stl","Worm gear for rotation drive."],
+  ["RotcenterV3.stl","Rotation center hub."],
+  ["armtopcover1.stl","Arm top cover, part 1."],
+  ["armtopcover2.stl","Arm top cover, part 2."],
+  ["armtopcover3.stl","Arm top cover, part 3."],
+  ["elbowshaftgearV1.stl","Gear on the elbow drive shaft."],
+  ["gearpotentioV1.stl","Gear that drives the position potentiometer."],
+  ["servobaseV1.stl","Base mount for the servo."],
+  ["servoholderV1.stl","Holder/clamp for the servo body."],
+  ["spacerV1.stl","Spacer piece for shaft alignment."]
+].map(([f,d])=>part("Bicep",f,d));
+
+/* ---------- Full category list (folders), from inmoov.fr STL viewer ---------- */
+const CATEGORY_NAMES = [
+  "Back","Bicep","BicepOlderVersion","Chest","Eyes-mechanism","Face-and-Jaw",
+  "Face-and-Jaw-OlderVersion","Finger Sensor","Finger-starter-kit","Forearm-and-Servo-Bed",
+  "InMoov Goodies","Left-Hand","Legs-Ankle","Legs-Knee","Legs-Thigh","Legs-Tibia",
+  "Low-Stomach","Mid-Stomach","MinMoov","MinMoovHand","Neck","Neck-OlderVersion",
+  "Other-useful-parts","Right-Hand","Rotation-Wrist","Shoulder","Shoulder-OlderVersion",
+  "Skull-and-Ears","Skull-and-Ears-OlderVersion","Top-Stomach","Torso","Various Support",
+  "i2Eyes","i2Head","i2LeftHand","i2RightHand"
+];
+
+const I2RIGHTHAND_FILES = [
+  ["i2_Adapter1109MG.stl","Servo adapter for the 1109MG motor."],
+  ["i2_CoverFingerV3.stl","Cover piece for the i2 finger."],
+  ["i2_FingersMoldX5V3.stl","Mold used to cast all 5 i2 fingers."],
+  ["i2_FingersTipX5V2.stl","Fingertip pieces, set of 5."],
+  ["i2_FingersX5V2.stl","i2 finger bodies, set of 5."],
+  ["i2_HandCoverV1.stl","Outer cover for the back of the hand."],
+  ["i2_HandPDI6225V2.stl","Hand frame sized for the PDI6225 motor."],
+  ["i2_PalmCoverV2.stl","Cover piece for the palm."],
+  ["i2_PalmPDI6225V3.stl","Palm frame sized for the PDI6225 motor."],
+  ["i2_PulleyX5V1.stl","Tendon pulleys, set of 5."],
+  ["i2_WristGearV1.stl","Gear for the wrist rotation mechanism."],
+  ["i2_WristLargeV2.stl","Large wrist rotation piece."]
+].map(([f,d])=>part("i2RightHand",f,d));
+
+const CHEST_FILES = [
+  ["BottomChestSonicV1.stl","Bottom chest plate, sonic-sensor variant."],
+  ["BottomChestV1.stl","Bottom chest plate, standard variant."],
+  ["ChestLeftV2.stl","Left chest side panel."],
+  ["ChestRightV2.stl","Right chest side panel."],
+  ["ChestTopAttachV1.stl","Attachment piece for the top of the chest."],
+  ["ChestTopV1.stl","Top chest plate."],
+  ["InMLeftV1.stl","Left internal chest mount."],
+  ["InMLeftV1HollowV1.stl","Left internal chest mount, hollow/lightweight version."],
+  ["InMrightV1.stl","Right internal chest mount."],
+  ["InMrightV1HollowV1.stl","Right internal chest mount, hollow/lightweight version."],
+  ["MiddleChest-PIRV1.stl","Middle chest plate with PIR motion sensor cutout."],
+  ["MiddleChestV1.stl","Middle chest plate, standard version."],
+  ["OakSupportV1.stl","Structural support piece (commonly cut from wood/oak)."],
+  ["SideRibsCoverV2.stl","Cover panel for the side ribs."],
+  ["Typo.stl","Small accessory/label piece."],
+  ["UnderKinectV2.stl","Mounting piece under the Kinect sensor bay."]
+].map(([f,d])=>part("Chest",f,d));
+
+/* ---------- Additional categories fetched from inmoov.fr STL viewer ---------- */
+
+const EYES_MECHANISM_FILES = [
+  "2xEyeBallFullV2.stl",
+  "EyeBallSupportHerculeLeftV2.stl",
+  "EyeBallSupportHerculeRightV2.stl",
+  "EyeBallSupportLifeCamHDLeftV1.stl",
+  "EyeBallSupportLifeCamHDRightV1.stl",
+  "EyeHingeCurveV1.stl",
+  "EyeHingeV2.stl",
+  "EyeHolderV1.stl",
+  "EyePlateLeftV1.stl",
+  "EyePlateRightV1.stl",
+  "EyeSupportV5.stl",
+  "EyeTo NoseV5.stl",
+].map(f => part("Eyes-mechanism", f));
+
+const FACE_AND_JAW_FILES = [
+  "EyeglassV4.stl",
+  "JawHingeV1.stl",
+  "JawHingeV3.stl",
+  "JawPistonV1.stl",
+  "JawSupportV1.stl",
+  "JawV4.stl",
+  "LowBackV5.stl",
+  "SideHearV5.stl",
+  "TopMouthV4.stl",
+].map(f => part("Face-and-Jaw", f));
+
+const FACE_AND_JAW_OLDERVERSION_FILES = [
+  "LowBackV3.stl",
+  "SideHearV3.stl",
+  "TopMouthV3.stl",
+].map(f => part("Face-and-Jaw-OlderVersion", f));
+
+const FINGER_SENSOR_FILES = [
+  "SensorFinger7-5Piece.stl",
+].map(f => part("Finger Sensor", f));
+
+const FINGER_STARTER_KIT_FILES = [
+  "FingerIndexV4.stl",
+  "FingerTesterV2.stl",
+  "RobRingV2.stl",
+  "Servo-PulleyV2.stl",
+].map(f => part("Finger-starter-kit", f));
+
+const FOREARM_AND_SERVO_BED_FILES = [
+  "LeftRobCableBackV3.stl",
+  "LeftRobCableFrontV3.stl",
+  "LeftRobServoBedV6.stl",
+  "LeftTensionerV1.stl",
+  "RobCableBackV3.stl",
+  "RobCableFrontV3.stl",
+  "RobRingV3.stl",
+  "RobServoBedV6.stl",
+  "TensionerRightV1.stl",
+  "servo-pulleyX5.stl",
+].map(f => part("Forearm-and-Servo-Bed", f));
+
+const INMOOV_GOODIES_FILES = [
+  "InMoov236.stl",
+].map(f => part("InMoov Goodies", f));
+
+const LEFT_HAND_FILES = [
+  "Auriculaire3.stl",
+  "Bolt_entretoise7.stl",
+  "Index3.stl",
+  "LeftRobCap3V2.stl",
+  "LeftRobpart2V4.stl",
+  "LeftRobpart3V4.stl",
+  "LeftRobpart4V4.stl",
+  "LeftRobpart5V4.stl",
+  "LeftWristlargeV4.stl",
+  "LeftWristsmallV4.stl",
+  "Majeure3.stl",
+  "leftcoverfinger1.stl",
+  "leftthumb5.stl",
+  "lefttopsurface6.stl",
+  "lefttopsurfaceUP6.stl",
+  "ringfinger3.stl",
+].map(f => part("Left-Hand", f));
+
+const LEGS_ANKLE_FILES = [
+  "AnkBackFootV1.stl",
+  "AnkHolderV1.stl",
+  "AnkMidleFootV1.stl",
+  "AnkToesBoltV1.stl",
+  "AnkToesFootV2.stl",
+  "AnkleBaseV1.stl",
+  "AnkleDownV2.stl",
+  "AnkpartV1.stl",
+  "FootBoltHolder.stl",
+  "LeftAnkBackFootV1.stl",
+  "LeftAnkHolderV1.stl",
+  "LeftAnkMidleFootV1.stl",
+  "LeftAnkToesFootV2.stl",
+  "LeftAnkleDownV2.stl",
+  "LeftAnkpartV1.stl",
+  "leftAnkleBaseV1.stl",
+].map(f => part("Legs-Ankle", f));
+
+const LEGS_KNEE_FILES = [
+  "KneeBoltsV1.stl",
+  "KneeClampLeftV1.stl",
+  "KneeClampRightV1.stl",
+  "KneeHighLeftV3.stl",
+  "KneeHighRightV3.stl",
+  "KneeLowLeftV3.stl",
+  "KneeLowRightV3.stl",
+  "KneeSmallBoltsV1.stl",
+].map(f => part("Legs-Knee", f));
+
+const LEGS_THIGH_FILES = [
+  "LegFixerLeftV1.stl",
+  "LegFixerV1.stl",
+  "LegHolderLeft.stl",
+  "LegHolderRight.stl",
+  "ThighBoltBlokerLV1.stl",
+  "ThighBoltBlokerRV1.stl",
+  "ThighHighBlokerLV1.stl",
+  "ThighHighBlokerRV1.stl",
+  "ThighHighLeftV1.stl",
+  "ThighHighRightV1.stl",
+  "ThighHighTempLeftV1.stl",
+  "ThighHighTempV1.stl",
+  "ThighLowLeftV3.stl",
+  "ThighLowRightV3.stl",
+  "ThighMidLeftV1.stl",
+  "ThighMidRightV1.stl",
+  "ThighSideAccessLeftV1.stl",
+  "ThighSideAccessRightV1.stl",
+].map(f => part("Legs-Thigh", f));
+
+const LEGS_TIBIA_FILES = [
+  "TibiaHighLeftV1.stl",
+  "TibiaHighRightV1.stl",
+  "TibiaLowS1LeftV1.stl",
+  "TibiaLowS1RightV1.stl",
+  "TibiaLowS2LeftV1.stl",
+  "TibiaLowS2RightV1.stl",
+].map(f => part("Legs-Tibia", f));
+
+const LOW_STOMACH_FILES = [
+  "StomSupportLeftV1.stl",
+  "StomSupportRightV1.stl",
+  "TStoLowLeftV1.stl",
+  "TStoLowRightV1.stl",
+].map(f => part("Low-Stomach", f));
+
+const MID_STOMACH_FILES = [
+  "BotBackLeftV1.stl",
+  "BotBackRigtV1.stl",
+  "BotCapLeftV1.stl",
+  "BotCapRightV1.stl",
+  "BotFrontLeftV1.stl",
+  "BotFrontRigtV1.stl",
+  "HipCoverFrontV1.stl",
+  "HipCoverLeftV1.stl",
+  "HipCoverRightV1.stl",
+  "MidPotHolderSquareV1.stl",
+  "MidPotHolderV1.stl",
+  "MidWormRightV1.stl",
+].map(f => part("Mid-Stomach", f));
+
+const MINMOOV_FILES = [
+  "MinMoov.stl",
+].map(f => part("MinMoov", f));
+
+const MINMOOVHAND_FILES = [
+  "MinMoovHand.stl",
+].map(f => part("MinMoovHand", f));
+
+const NECK_FILES = [
+  "FaceHolderV4.stl",
+  "GearHolderV2.stl",
+  "MainGearV2.stl",
+  "NeckBoltsV2.stl",
+  "NeckJointLowerV5.stl",
+  "NeckPistonBaseFrontV1.stl",
+  "NeckPistonFrontV2.stl",
+  "NeckPistonSideV1.stl",
+  "NeckPistonV2.stl",
+  "NeckPlateHighV2.stl",
+  "NeckPlateV2.stl",
+  "NeckServoHolderV2.stl",
+  "NeckServoPivotV2.stl",
+  "NeckV3.stl",
+  "PistonBaseSideV2.stl",
+  "RingV2.stl",
+  "ServoGearV2.stl",
+  "SkullServoFixV1.stl",
+  "SpeakerMouthHolderV2.stl",
+  "ThroatHolderV2.stl",
+  "ThroatHoleV3.stl",
+].map(f => part("Neck", f));
+
+const NECK_OLDERVERSION_FILES = [
+  "NeckHingeV2.stl",
+  "NeckV1.stl",
+  "ThroatPistonBaseV3.stl",
+  "ThroatPistonV3.stl",
+].map(f => part("Neck-OlderVersion", f));
+
+const OTHER_USEFUL_PARTS_FILES = [
+  "FingerTipMoldV3.stl",
+  "HookLV1.stl",
+  "HookRV1.stl",
+  "Jumper5Adapter.stl",
+  "LowStoHookLV1.stl",
+  "LowStoHookRV1.stl",
+  "StandHolderV2.stl",
+  "SupportV2.stl",
+  "coverfinger1UP.stl",
+].map(f => part("Other-useful-parts", f));
+
+const RIGHT_HAND_FILES = [
+  "Auriculaire3.stl",
+  "Bolt_entretoise7.stl",
+  "Index3.stl",
+  "Majeure3.stl",
+  "WristlargeV4.stl",
+  "WristsmallV4.stl",
+  "ardiuinosupport.stl",
+  "coverfinger1.stl",
+  "ringfinger3.stl",
+  "robcap3V2.stl",
+  "robpart2V4.stl",
+  "robpart3V4.stl",
+  "robpart4V4.stl",
+  "robpart5V4.stl",
+  "thumb5.stl",
+  "topsurface6.stl",
+  "topsurfaceUP6.stl",
+].map(f => part("Right-Hand", f));
+
+const ROTATION_WRIST_FILES = [
+  "CableHolderWristV5.stl",
+  "LeftCableHolderWristV5.stl",
+  "LeftRotaWrist2V3.stl",
+  "LeftRotawrist1V4.stl",
+  "RotaWrist1V4.stl",
+  "RotaWrist2V3.stl",
+  "RotaWrist3V3.stl",
+  "WristGearsV5.stl",
+].map(f => part("Rotation-Wrist", f));
+
+const SHOULDER_FILES = [
+  "ClaviBackV2.stl",
+  "ClaviFrontV2.stl",
+  "LeftPivMitV2.stl",
+  "LeftPivPotholderSquareV1.stl",
+  "LeftPivPotholderV3.stl",
+  "LeftPivTitV3.stl",
+  "LeftPivcenterV3.stl",
+  "LogoLeftMyrobotlabV2.stl",
+  "LogoRightMyrobotlabV2.stl",
+  "PistonClaviV3.stl",
+  "PistonbaseV6.stl",
+  "PivConnectorV1.stl",
+  "PivGearV6.stl",
+  "PivMitV2.stl",
+  "PivPotentioRoundV3.stl",
+  "PivPotentioSquareV4.stl",
+  "PivPotholderSquareV1.stl",
+  "PivPotholderV3.stl",
+  "PivTitV3.stl",
+  "PivWormV5.stl",
+  "PivcenterV3.stl",
+  "servoHolsterV1.stl",
+  "servoholderV1.stl",
+].map(f => part("Shoulder", f));
+
+const SHOULDER_OLDERVERSION_FILES = [
+  "LeftPivPotholderV2.stl",
+  "PivGearV5.stl",
+  "PivMitV1.stl",
+  "PivPotholderV2.stl",
+  "PivWormV2.stl",
+  "PivcenterV1.stl",
+  "leftPivMitV1.stl",
+  "leftPivcenterV1.stl",
+].map(f => part("Shoulder-OlderVersion", f));
+
+const SKULL_AND_EARS_FILES = [
+  "EarLeftV0.stl",
+  "EarLeftV1.stl",
+  "EarRightV0.stl",
+  "EarRightV1.stl",
+  "EarSpeakerLeftV1.stl",
+  "EarSpeakerRightV1.stl",
+  "Speaker1.stl",
+  "SpeakerSpacer1.stl",
+  "TopBackskullV4.stl",
+  "TopskullLeftV4.stl",
+  "TopskullRightV4.stl",
+].map(f => part("Skull-and-Ears", f));
+
+const SKULL_AND_EARS_OLDERVERSION_FILES = [
+  "TopBackskullV1.stl",
+  "TopskullLeftV3.stl",
+  "TopskullRightV3.stl",
+].map(f => part("Skull-and-Ears-OlderVersion", f));
+
+const TOP_STOMACH_FILES = [
+  "DiskExternV2.stl",
+  "DiskInternV3 .stl",
+  "DiskUnderV1.stl",
+  "RollBackLeftV1.stl",
+  "RollBackRightV1.stl",
+  "RollFrontLeftV1.stl",
+  "RollFrontRightV1.stl",
+  "ServoBackV1.stl",
+  "StoGearAttachV1.stl",
+  "StomGearV2.stl",
+  "TStoBackLeftV1.stl",
+  "TStoBackRightV1.stl",
+  "TStoBackStandLeftV1.stl",
+  "TStoBackStandRightV1.stl",
+  "TStoFrontLeftV1.stl",
+  "TStoFrontRightV1.stl",
+  "TStoFrontStandV2.stl",
+  "TStoMiddleV1.stl",
+  "TStoPistonLeftV2.stl",
+  "TStoPistonRightV2.stl",
+  "TStoServoHolsterV2.stl",
+  "TStomCovLeftV2.stl",
+  "TStomCovRightV2.stl",
+  "TStomPotHolderSquarev1.stl",
+  "TStomPotHolderv1.stl",
+  "TStomRotBackV1.stl",
+  "TStomRotFrontV1.stl",
+  "TStomSpacerV1.stl",
+].map(f => part("Top-Stomach", f));
+
+const TORSO_FILES = [
+  "ChestLowV1.stl",
+  "HomLowBackV3.stl",
+  "HomLowFront-V1.stl",
+  "InterKinectMidV1.stl",
+  "InterKinectSideV1.stl",
+  "KinectMidBackV1.stl",
+  "KinectMidFrontV1.stl",
+  "KinectSideBackV2.stl",
+  "KinectSideHolderV1.stl",
+  "SternumV1.stl",
+  "ThroatLowerV1.stl",
+  "arduinosupportmega.stl",
+  "homplateback+V1.stl",
+  "homplateback-V1.stl",
+  "homplatebacklow+V1.stl",
+  "homplatebacklow-V1.stl",
+  "homplatefront+V1.stl",
+  "homplatefront-V1.stl",
+  "servoHolsterV1.stl",
+].map(f => part("Torso", f));
+
+const VARIOUS_SUPPORT_FILES = [
+  "SupportDiam22V2.stl",
+  "SupportDiam32V2.stl",
+  "support-stomach.stl",
+].map(f => part("Various Support", f));
+
+const I2EYES_FILES = [
+  "Eye-L-AllPartsV2.stl",
+  "Eye-L-BaseV5.stl",
+  "Eye-R-AllPartsV2.stl",
+  "Eye-R-BaseV5.stl",
+].map(f => part("i2Eyes", f));
+
+const I2HEAD_FILES = [
+  "BottomTeethV1.stl",
+  "CheekPullerV3.stl",
+  "EarLockV1.stl",
+  "EyebrowSupportV3.stl",
+  "EyebrowV3.stl",
+  "FaceHolderLeftV5.stl",
+  "FaceHolderRightV5.stl",
+  "ForHeadSupportV2.stl",
+  "ForHeadsV4.stl",
+  "GearHolderV3.stl",
+  "InnerMiddleMoldV1.stl",
+  "InnerSidesMoldV1.stl",
+  "JawHingeV4.stl",
+  "JawPistonV1NoSupport.stl",
+  "JawSupportV2.stl",
+  "JawV5.stl",
+  "LowBackV5.stl",
+  "MainGearV2.stl",
+  "OuterBottomMoldFemaleV2.stl",
+  "OuterBottomMoldMaleV2.stl",
+  "OuterTopMoldFemaleV1.stl",
+  "OuterTopMoldMaleV1.stl",
+  "PCA9685ConnectV2.stl",
+  "PCA9685supportV1.stl",
+  "RingV2.stl",
+  "ServoGearV2.stl",
+  "SkullServoFixV5.stl",
+  "TeethTopHolderV3.stl",
+  "TopBackskullV4.stl",
+  "TopTeethV3.stl",
+  "TopskullFrontV1.stl",
+  "TopskullV5.stl",
+  "UpperLipV2.stl",
+  "servoAdapterV1.stl",
+  "servoHornAdapterV1.stl",
+].map(f => part("i2Head", f));
+
+const I2LEFTHAND_FILES = [
+  "i2_Adapter1109MG.stl",
+  "i2_LeftCoverFingerV3.stl",
+  "i2_LeftCoverThumbV3.stl",
+  "i2_LeftHandCoverV1.stl",
+  "i2_LeftHandPDI6225V2.stl",
+  "i2_LeftPalmCoverV2.stl",
+  "i2_LeftPalmPDI6225V3.stl",
+  "i2_LeftWristGearV1.stl",
+  "i2_LeftWristLargeV2.stl",
+].map(f => part("i2LeftHand", f));
+
+let DATA = {};
+CATEGORY_NAMES.forEach(c => DATA[c] = []);
+DATA["Back"] = BACK_FILES;
+DATA["Bicep"] = BICEP_FILES;
+DATA["i2RightHand"] = I2RIGHTHAND_FILES;
+DATA["Chest"] = CHEST_FILES;
+DATA["Eyes-mechanism"] = EYES_MECHANISM_FILES;
+DATA["Face-and-Jaw"] = FACE_AND_JAW_FILES;
+DATA["Face-and-Jaw-OlderVersion"] = FACE_AND_JAW_OLDERVERSION_FILES;
+DATA["Finger Sensor"] = FINGER_SENSOR_FILES;
+DATA["Finger-starter-kit"] = FINGER_STARTER_KIT_FILES;
+DATA["Forearm-and-Servo-Bed"] = FOREARM_AND_SERVO_BED_FILES;
+DATA["InMoov Goodies"] = INMOOV_GOODIES_FILES;
+DATA["Left-Hand"] = LEFT_HAND_FILES;
+DATA["Legs-Ankle"] = LEGS_ANKLE_FILES;
+DATA["Legs-Knee"] = LEGS_KNEE_FILES;
+DATA["Legs-Thigh"] = LEGS_THIGH_FILES;
+DATA["Legs-Tibia"] = LEGS_TIBIA_FILES;
+DATA["Low-Stomach"] = LOW_STOMACH_FILES;
+DATA["Mid-Stomach"] = MID_STOMACH_FILES;
+DATA["MinMoov"] = MINMOOV_FILES;
+DATA["MinMoovHand"] = MINMOOVHAND_FILES;
+DATA["Neck"] = NECK_FILES;
+DATA["Neck-OlderVersion"] = NECK_OLDERVERSION_FILES;
+DATA["Other-useful-parts"] = OTHER_USEFUL_PARTS_FILES;
+DATA["Right-Hand"] = RIGHT_HAND_FILES;
+DATA["Rotation-Wrist"] = ROTATION_WRIST_FILES;
+DATA["Shoulder"] = SHOULDER_FILES;
+DATA["Shoulder-OlderVersion"] = SHOULDER_OLDERVERSION_FILES;
+DATA["Skull-and-Ears"] = SKULL_AND_EARS_FILES;
+DATA["Skull-and-Ears-OlderVersion"] = SKULL_AND_EARS_OLDERVERSION_FILES;
+DATA["Top-Stomach"] = TOP_STOMACH_FILES;
+DATA["Torso"] = TORSO_FILES;
+DATA["Various Support"] = VARIOUS_SUPPORT_FILES;
+DATA["i2Eyes"] = I2EYES_FILES;
+DATA["i2Head"] = I2HEAD_FILES;
+DATA["i2LeftHand"] = I2LEFTHAND_FILES;
+
+let currentCat = "Back";
+let editingIndex = null; // when set, modal edits existing part instead of adding
+
+/* ---------- Rendering ---------- */
+function catTotals(cat){
+  const list = DATA[cat] || [];
+  const printed = list.filter(p=>p.printed).length;
+  return {printed, total:list.length};
+}
+
+function renderSidebar(filter=""){
+  const listEl = document.getElementById('catList');
+  listEl.innerHTML = '';
+  const f = filter.trim().toLowerCase();
+  CATEGORY_NAMES.filter(c=>c.toLowerCase().includes(f)).forEach(cat=>{
+    const {printed,total} = catTotals(cat);
+    const div = document.createElement('div');
+    div.className = 'catItem' + (cat===currentCat ? ' active':'');
+    div.setAttribute('data-cat', cat);
+    div.innerHTML = `<span class="catName">${cat}</span>
+      <span class="catRight">
+        <span class="count">${printed}/${total}</span>
+        <button type="button" class="catDelBtn" data-cat="${cat}" title="Delete folder">✕</button>
+      </span>`;
+    listEl.appendChild(div);
+  });
+}
+
+/* Event delegation for the sidebar: attached once, works no matter how often renderSidebar redraws it */
+document.getElementById('catList').addEventListener('click', function(e){
+  const delBtn = e.target.closest('.catDelBtn');
+  if(delBtn){
+    e.stopPropagation();
+    deleteFolder(delBtn.getAttribute('data-cat'));
+    return;
+  }
+  const row = e.target.closest('.catItem');
+  if(row){
+    currentCat = row.getAttribute('data-cat');
+    renderAll();
+  }
+});
+
+function renderTopbar(){
+  document.getElementById('catTitle').textContent = currentCat || 'No folders';
+  document.getElementById('addPartBtn').style.display = currentCat ? '' : 'none';
+  document.getElementById('deleteFolderBtn').style.display = currentCat ? '' : 'none';
+  if(!currentCat){
+    document.getElementById('catSub').textContent = '';
+    document.getElementById('catProgress').childNodes[0].textContent = '';
+    document.getElementById('catBarFill').style.width = '0%';
+    return;
+  }
+  const {printed,total} = catTotals(currentCat);
+  document.getElementById('catSub').textContent = total + (total===1?' part':' parts');
+  document.getElementById('catProgress').childNodes[0].textContent = `${printed} / ${total} printed `;
+  const pct = total? Math.round(printed/total*100):0;
+  document.getElementById('catBarFill').style.width = pct+'%';
+}
+
+function renderGlobalStats(){
+  let printed=0,total=0;
+  CATEGORY_NAMES.forEach(c=>{ const t=catTotals(c); printed+=t.printed; total+=t.total; });
+  document.getElementById('gPrinted').textContent = printed;
+  document.getElementById('gTotal').textContent = total;
+  const pct = total? Math.round(printed/total*100):0;
+  document.getElementById('globalBarFill').style.width = pct+'%';
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  if(!currentCat){
+    grid.innerHTML = `<div class="emptyState">No folders left. Create one using the "+ Folder" box in the sidebar.</div>`;
+    return;
+  }
+  const list = DATA[currentCat] || [];
+  if(list.length===0){
+    grid.innerHTML = `<div class="emptyState">No parts added yet for <b>${currentCat}</b>.<br>
+      Click <b>+ Add Part</b> above, or browse
+      <a href="https://inmoov.fr/inmoov-stl-parts-viewer/?bodyparts=${encodeURIComponent(currentCat)}" target="_blank" style="color:#5b8cff">this category on inmoov.fr</a>
+      and copy the part name / image URL in.</div>`;
+    return;
+  }
+  list.forEach((p, idx)=>{
+    const card = document.createElement('div');
+    card.className = 'card' + (p.printed ? ' printed':'');
+    card.innerHTML = `
+      <div class="thumb">
+        ${p.image ? `<img src="${p.image}" alt="${p.name}" onerror="this.parentElement.innerHTML='<div class=\\'noimg\\'>No preview available</div>'">` : `<div class="noimg">No image set</div>`}
+      </div>
+      <div class="cardBody">
+        <div class="name" title="${p.name}">${p.name}</div>
+        <textarea class="desc" data-idx="${idx}" placeholder="Description...">${p.desc||''}</textarea>
+        <div class="cardFooter">
+          <label class="printedLabel">
+            <input type="checkbox" data-idx="${idx}" class="printedChk" ${p.printed?'checked':''}>
+            Printed
+          </label>
+          <div class="cardActions">
+            <button data-idx="${idx}" class="editBtn">Edit</button>
+            <button data-idx="${idx}" class="danger delBtn">Delete</button>
+          </div>
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('.printedChk').forEach(chk=>{
+    chk.onchange = e=>{
+      const i = +e.target.dataset.idx;
+      DATA[currentCat][i].printed = e.target.checked;
+      renderAll();
+    };
+  });
+  grid.querySelectorAll('.desc').forEach(ta=>{
+    ta.oninput = e=>{
+      const i = +e.target.dataset.idx;
+      DATA[currentCat][i].desc = e.target.value;
+    };
+  });
+  grid.querySelectorAll('.delBtn').forEach(btn=>{
+    btn.onclick = e=>{
+      const i = +e.target.dataset.idx;
+      if(confirm(`Delete "${DATA[currentCat][i].name}"?`)){
+        DATA[currentCat].splice(i,1);
+        renderAll();
+      }
+    };
+  });
+  grid.querySelectorAll('.editBtn').forEach(btn=>{
+    btn.onclick = e=>{
+      const i = +e.target.dataset.idx;
+      openModal(DATA[currentCat][i], i);
+    };
+  });
+}
+
+function renderAll(){
+  renderSidebar(document.getElementById('search').value);
+  renderTopbar();
+  renderGlobalStats();
+  renderGrid();
+}
+
+/* ---------- Folder create / delete ---------- */
+function deleteFolder(cat){
+  const {total} = catTotals(cat);
+  const msg = total > 0
+    ? `Delete the folder "${cat}" AND all ${total} part(s) inside it? This cannot be undone.`
+    : `Delete the empty folder "${cat}"?`;
+  if(!confirm(msg)) return;
+  const idx = CATEGORY_NAMES.indexOf(cat);
+  if(idx > -1) CATEGORY_NAMES.splice(idx,1);
+  delete DATA[cat];
+  if(currentCat === cat){
+    currentCat = CATEGORY_NAMES[0] || null;
+  }
+  renderAll();
+}
+
+document.getElementById('deleteFolderBtn').onclick = ()=> deleteFolder(currentCat);
+
+document.getElementById('newFolderBtn').onclick = ()=>{
+  const input = document.getElementById('newFolderInput');
+  const name = input.value.trim();
+  if(!name) return;
+  if(CATEGORY_NAMES.includes(name)){
+    alert('A folder with that name already exists.');
+    return;
+  }
+  CATEGORY_NAMES.push(name);
+  DATA[name] = [];
+  currentCat = name;
+  input.value = '';
+  renderAll();
+};
+document.getElementById('newFolderInput').addEventListener('keydown', e=>{
+  if(e.key === 'Enter') document.getElementById('newFolderBtn').click();
+});
+
+/* ---------- Modal ---------- */
+const overlay = document.getElementById('modalOverlay');
+function openModal(existing=null, idx=null){
+  editingIndex = idx;
+  document.getElementById('modalTitle').textContent = existing ? 'Edit Part' : `Add Part to ${currentCat}`;
+  document.getElementById('mName').value = existing ? existing.name : '';
+  document.getElementById('mImage').value = existing ? (existing.image||'') : '';
+  document.getElementById('mDesc').value = existing ? (existing.desc||'') : '';
+  overlay.classList.add('show');
+  document.getElementById('mName').focus();
+}
+function closeModal(){ overlay.classList.remove('show'); editingIndex=null; }
+
+document.getElementById('addPartBtn').onclick = ()=> openModal();
+document.getElementById('mCancel').onclick = closeModal;
+overlay.onclick = e=>{ if(e.target===overlay) closeModal(); };
+
+document.getElementById('mSave').onclick = ()=>{
+  const name = document.getElementById('mName').value.trim();
+  if(!name){ alert('Please enter a part name.'); return; }
+  const image = document.getElementById('mImage').value.trim();
+  const desc = document.getElementById('mDesc').value.trim();
+  if(editingIndex!==null){
+    const p = DATA[currentCat][editingIndex];
+    p.name=name; p.image=image; p.desc=desc;
+  } else {
+    DATA[currentCat].push({name, image, desc, printed:false});
+  }
+  closeModal();
+  renderAll();
+};
+
+/* ---------- Search ---------- */
+document.getElementById('search').oninput = e=> renderSidebar(e.target.value);
+
+/* ---------- Export / Import ---------- */
+document.getElementById('exportBtn').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(DATA,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'inmoov-stl-progress.json';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+document.getElementById('importBtn').onclick = ()=> document.getElementById('fileInput').click();
+document.getElementById('fileInput').onchange = (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      // merge: keep known categories, add any unexpected ones too
+      Object.keys(parsed).forEach(cat=>{
+        if(!CATEGORY_NAMES.includes(cat)) CATEGORY_NAMES.push(cat);
+        DATA[cat] = parsed[cat];
+      });
+      if(!DATA[currentCat]) currentCat = CATEGORY_NAMES[0];
+      renderAll();
+      alert('Progress imported successfully.');
+    }catch(err){
+      alert('Could not read that file — is it a valid export from this app?');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+};
+
+/* ---------- Init ---------- */
+renderAll();
+</script>
+</body>
+</html>
